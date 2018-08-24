@@ -23,11 +23,11 @@
 
 	   If you publish data that was created using this code, or
 	   parts of it, we ask to cite the original papers:
-	   - T. Vogel et al., Phys. Rev. Lett. 110 (2013) 210603
-       - T. Vogel et al., Phys. Rev. E 90 (2014) 023302
+	     - T. Vogel et al., Phys. Rev. Lett. 110 (2013) 210603
+             - T. Vogel et al., Phys. Rev. E 90 (2014) 023302
 	   Accompanying publications include:
-	   - T. Vogel et al., J. Phys.: Conf. Ser. 487 (2014) 012001
-       - Y.W. Li et al., J. Phys.: Conf. Ser. 510 (2014) 012012
+	     - T. Vogel et al., J. Phys.: Conf. Ser. 487 (2014) 012001
+             - Y.W. Li et al., J. Phys.: Conf. Ser. 510 (2014) 012012
 
 	   2) ShareAlike: If you modify, transform, or build upon the
 	   material, you must distribute your contributions under the
@@ -56,42 +56,42 @@
 #include <time.h>
 #include <limits.h>
 
-const int L1dim=4;  // linear dimension 
-const int Dimension=2;  // not sure at this moment if other than 2D is actually implemented 
-const int numberspins=pow(L1dim,Dimension);  // total number of spins
-const int numberneighbors=4; // for 2D square lattice (others not implemented right now)
-const int Eglobalmin=-2*numberspins; // minimum energy for 2D square lattice Potts model
-const int Eglobalmax=0; // maximum energy of Potts model
-const int bctype=0; // type of boundary condition: 0 - periodic; 1 - Braskamp Kunz
-const int q=10; // number of different possible spin states (q-state Potts model)
+const int L1dim = 4;                            // linear dimension 
+const int Dimension = 2;                        // not sure at this moment if other than 2D is actually implemented 
+const int numberspins = pow(L1dim, Dimension);  // total number of spins
+const int numberneighbors = 4;                  // for 2D square lattice (others not implemented right now)
+const int Eglobalmin = -2*numberspins;          // minimum energy for 2D square lattice Potts model
+const int Eglobalmax = 0;                       // maximum energy of Potts model
+const int bctype = 0;                           // type of boundary condition: 0 - periodic; 1 - Braskamp Kunz
+const int q = 10;                               // number of different possible spin states (q-state Potts model)
 
-int *latticepoint; // list containing values of all spins
-int *neighbor; // list containing indices of neighbors for all spins
+int *latticepoint;                      // list containing values of all spins
+int *neighbor;                          // list containing indices of neighbors for all spins
 
-double *HE; // energy histogram
-double *lngE; // ln g(E) estimator
-double *lngE_buf; // ln g(E) estimator buffer for exchange
-int hist_size=2*numberspins+1; // histogram size
+double *HE;                             // energy histogram
+double *lngE;                           // ln g(E) estimator
+double *lngE_buf;                       // ln g(E) estimator buffer for exchange
+int hist_size = 2*numberspins+1;        // histogram size
 
 
-int rseed; // seed for random number generator
-int energy,localenergy;
+int rseed;                              // seed for random number generator
+int energy, localenergy;
 
-double Emin,Emax; // doubles as calculation of boundaries in Energy is not in 'int'
-int Eminindex, Emaxindex, Estartindex; // local boundaries as index 
+double Emin,Emax;                       // doubles as calculation of boundaries in Energy is not in 'int'
+int Eminindex, Emaxindex, Estartindex;  // local boundaries as index 
 
-//MPI; set up with local communicators for replica exchange (RE)
-//Needed so that two processes can talk w/o depending on / bothering the others
+// MPI; set up with local communicators for replica exchange (RE)
+// Needed so that two processes can talk w/o depending on / bothering the others
 int numprocs, myid, multiple, comm_id;
 // each process belongs to two local groups,
 // one to communicate to left neighbor and one to communicate to right neighbor
 // each process has different loca IDs in different communicatore, in general 
-int mylocalid[2]; // id in local communicators 
+int mylocalid[2];                       // id in local communicators 
 MPI_Comm *mpi_local_comm;
 MPI_Group *mpi_local_group;
 MPI_Group world;
 MPI_Status status;
-int merge_hists=1; // flag whether or not to merge histograms between iterations for multiple walkers on the same energy range
+int merge_hists = 1;                    // flag whether or not to merge histograms between iterations for multiple walkers on the same energy range
 
 // to keep track of exchange statistics
 int tryleft, tryright, exchangeleft, exchangeright;
@@ -106,119 +106,128 @@ char wanderlogname[128];
 int ret_status;
 
 // to track execution times
-time_t timenow,timestart,timeend;
+time_t timenow, timestart, timeend;
 
-void keypressed() // just for developing / manual debugging
+
+void keypressed()     // just for developing / manual debugging
 {
-  for(;;) if (getchar()==27) break;
+  for (;;)
+    if (getchar() == 27) break;
 }
+
 
 void init_neighbors() // create neighbor list
 {
-  neighbor=(int*)malloc(numberspins*numberneighbors*sizeof(int));
   // neighbor contains the index of the neighboring spin
   // for each spin there are four neighbors in this order: above, right, below, left
+  neighbor = (int*) malloc(numberspins * numberneighbors * sizeof(int));
 
-  for(int i=0;i<numberspins;i++) // in general
+  for (int i=0; i<numberspins; i++)    // in general
     {
-      neighbor[4*i]=i-L1dim; //above
-      neighbor[4*i+1]=i+1; //right
-      neighbor[4*i+2]=i+L1dim; //below
-      neighbor[4*i+3]=i-1; //left
+      neighbor[4*i]   = i - L1dim;     // above
+      neighbor[4*i+1] = i + 1;         // right
+      neighbor[4*i+2] = i + L1dim;     // below
+      neighbor[4*i+3] = i - 1;         // left
     };
 
-  if (bctype==0) // periodic BC
-    for(int i=0;i<numberspins;i++) //now treat boundaries separately
+  if (bctype == 0)   // periodic BC
+    for (int i=0; i<numberspins; i++)                  // now treat boundaries separately
       {
-	if (i<L1dim) //top row
-	  neighbor[4*i]=numberspins-L1dim+i;
-	if ((i+1)%L1dim==0) //rightmost column
-	  neighbor[4*i+1]=i+1-L1dim;
-	if (i>(numberspins-L1dim-1)) //bottom row
-	  neighbor[4*i+2]=i-(numberspins-L1dim);
-	if (i%L1dim==0) //leftmost column
-	  neighbor[4*i+3]=i-1+L1dim;
+	if (i < L1dim)                                 // top row
+	  neighbor[4*i] = numberspins - L1dim + i;
+	if ((i+1)%L1dim == 0)                          // rightmost column
+	  neighbor[4*i+1] = i + 1 - L1dim;
+	if (i > (numberspins - L1dim - 1) )            // bottom row
+	  neighbor[4*i+2] = i - (numberspins - L1dim);
+	if (i%L1dim == 0)                              // leftmost column
+	  neighbor[4*i+3] = i - 1 + L1dim;
       };
-  if (bctype==1) // Braskamp Kunz BC
-    for(int i=0;i<numberspins;i++) //now treat boundaries separately
+
+  if (bctype == 1) // Braskamp Kunz BC
+    for (int i=0; i<numberspins; i++)                  // now treat boundaries separately
       {
-	if ((i+1)%L1dim==0) //rightmost column
-	  neighbor[4*i+1]=i+1-L1dim;
-	if (i%L1dim==0) //leftmost column
-	  neighbor[4*i+3]=i-1+L1dim;
-	if (i<L1dim) //top row
-	  neighbor[4*i]=numberspins;
-	if (i>(numberspins-L1dim-1)) //bottom row
-	  neighbor[4*i+2]=numberspins+(i%2);
+	if ((i+1)%L1dim == 0)                          // rightmost column
+	  neighbor[4*i+1] = i + 1 - L1dim;
+	if (i%L1dim == 0)                              // leftmost column
+	  neighbor[4*i+3] = i - 1 + L1dim;
+	if (i < L1dim)                                 // top row
+	  neighbor[4*i] = numberspins;
+	if (i > (numberspins - L1dim - 1) )            // bottom row
+	  neighbor[4*i+2] = numberspins + (i%2);
       };
   
   //print neighbor list (for manual debugging)
-  //  for (int i=0;i<numberspins*numberneighbors;i++)
+  //  for (int i=0; i<numberspins*numberneighbors; i++)
   //    {
-  //      printf("%4d",neighbor[i]);
-  //      if ((i+1)%numberneighbors==0) printf("\n");
+  //      printf("%4d", neighbor[i]);
+  //      if ((i+1)%numberneighbors == 0) printf("\n");
   //    };
 }
 
-int totalenergy() // returns total energy of system
+
+int totalenergy()         // returns total energy of system
 {
-  int e=0;
-  for(int i=0;i<numberspins;i++)
+  int e = 0;
+  for (int i=0; i<numberspins; i++)
     {
-      if (bctype==0) // periodic boundaries
-	for(int j=0;j<2;j++)
+      if (bctype == 0)    // periodic boundaries
+	for (int j=0; j<2; j++)
 	  {
-	    if (latticepoint[i]==latticepoint[neighbor[4*i+j]])
-	    e--;
+	    if (latticepoint[i] == latticepoint[neighbor[4*i+j]])
+	      e--;
 	  }
-      if (bctype==1) // Braskamp Kunz boundaries
-	for(int j=1;j<3;j++)
+      if (bctype == 1)    // Braskamp Kunz boundaries
+	for (int j=1; j<3; j++)
 	  {
-	    if (latticepoint[i]==latticepoint[neighbor[4*i+j]])
+	    if (latticepoint[i] == latticepoint[neighbor[4*i+j]])
 	      e--;
 	  }
     };
 
-  if (bctype==1) // Braskamp Kunz boundaries, add fixed upper boundaries
-    for(int i=0;i<L1dim;i++)
+  if (bctype == 1)        // Braskamp Kunz boundaries, add fixed upper boundaries
+    for (int i=0; i<L1dim; i++)
       {
-	if (latticepoint[i]==latticepoint[neighbor[4*i]])
+	if (latticepoint[i] == latticepoint[neighbor[4*i]])
 	  e--;
       }
-  return(e);
+  return (e);
 }
 
-int local_energy(int i) // returns energy of a single spin
+
+int local_energy(int i)   // returns energy of a single spin
 {
-  double eloc=0;
+  double eloc = 0;
 
-  for(int j=0;j<numberneighbors;j++)
+  for(int j=0; j<numberneighbors; j++)
     {
-      if (latticepoint[i]==latticepoint[neighbor[4*i+j]]) eloc--;
+      if (latticepoint[i] == latticepoint[neighbor[4*i+j]])
+        eloc--;
     }
-  return(eloc);
+  return (eloc);
 }
 
-int propose_update(int w) // returns energy change if a spin would be updated
+
+int propose_update(int w)    // returns energy change if a spin would be updated
 {
   // ! this could be coded better: this function also changes the actual spin !
   // ! if update is not accepted, this has to be undone explicitly !
-  int elocvor=local_energy(w);
-  int newq=rand()%q;
-  latticepoint[w]=newq; // spin _is_ changed here
+  int elocvor = local_energy(w);
+  int newq = rand() % q;
+  latticepoint[w] = newq;    // spin _is_ changed here
 
-  int elocnach=local_energy(w);
+  int elocnach = local_energy(w);
   return(elocnach-elocvor);
 }
+
 
 int histflat(int imin, int imax, double ratio)
 {
   // checks flatness of histograms for _all_ walkers in energy window
-  int myflat,otherflat; 
-  int flatness_crit=1;
+  int myflat, otherflat; 
+  int flatness_crit = 1;
 
   // check own flatness first
-  if (flatness_crit==0) // Zhou criterion
+  if (flatness_crit == 0)       // Zhou criterion
     {
       // NOT AVAILABLE YET!
       // TODO: CALCULATE histmin FOR ZHOU CRITERION
@@ -226,62 +235,65 @@ int histflat(int imin, int imax, double ratio)
       //    for (int x=imin;x<=imax;x++)
       //    if (HE[x]<histmin) myflat=0;
     }
-  else if (flatness_crit==1) // "Original" percentage criterion
+  else if (flatness_crit == 1)  // "Original" percentage criterion
     {
-      myflat=1;
+      myflat = 1;
       double minval;
-      minval=HE[imin]; // take GS hits as reference
-      double average=0.0;
-      double count=0.0;
+      minval = HE[imin];        // take GS hits as reference
+      double average = 0.0;
+      double count = 0.0;
       
-      for (int x=imin;x<=imax;x++)
+      for (int x=imin; x<=imax; x++)
 	{
-	  if (((x>5)||(x==4))&&(HE[x]<minval)) minval=HE[x];
+	  if (((x>5)||(x==4)) && (HE[x]<minval))
+            minval = HE[x];
 	  //(I am not sure right now why I included the first condition ...)
 
-	  average+=HE[x];
+	  average += HE[x];
 	  count++;
 	}
-      average/=count;
+      average /= count;
       
-      if (minval<(ratio*average)) myflat=0;
+      if (minval < (ratio*average)) 
+        myflat = 0;
     }
 
   // now talk to all the other walkers in the energy window
   // (! this whole thing can be reduced to an MPI_Allreduce once there 
   // are separate communicators for energy windows !)
 
-  if (merge_hists==1) // check flatness of other walkers in window
+  if (merge_hists == 1)                   // check flatness of other walkers in window
     {
-      if (myid%multiple==0) // 'root' in energy window, receive individual flatnesses
+      if (myid%multiple == 0)             // 'root' in energy window, receive individual flatnesses
 	{
 	  for (int i=1; i<multiple; i++)
 	    {
-	      MPI_Recv(&otherflat,1,MPI_INT,myid+i,66,MPI_COMM_WORLD,&status);
-	      myflat*=otherflat; // all have to be '1' to give '1' in the end (manual '&&')
+	      MPI_Recv(&otherflat, 1, MPI_INT, myid+i, 66, MPI_COMM_WORLD, &status);
+	      myflat *= otherflat;        // all have to be '1' to give '1' in the end (manual '&&')
 	    }
-	  for (int i=1; i<multiple; i++) // and let everybody know
+	  for (int i=1; i<multiple; i++)  // and let everybody know
 	    {
-	      MPI_Send(&myflat,1,MPI_INT,myid+i,88,MPI_COMM_WORLD);
+	      MPI_Send(&myflat, 1, MPI_INT, myid+i, 88, MPI_COMM_WORLD);
 	    }
 	}
-      else // send individual flatness and receive 'merged' flatness
+      else                                // send individual flatness and receive 'merged' flatness
 	{
-	  MPI_Send(&myflat,1,MPI_INT,myid-(myid%multiple),66,MPI_COMM_WORLD);
-	  MPI_Recv(&otherflat,1,MPI_INT,myid-(myid%multiple),88,MPI_COMM_WORLD,&status);
-	  myflat=otherflat; // replace individual flatness by merged
+	  MPI_Send(&myflat, 1, MPI_INT, myid-(myid%multiple), 66, MPI_COMM_WORLD);
+	  MPI_Recv(&otherflat, 1, MPI_INT, myid-(myid%multiple), 88, MPI_COMM_WORLD, &status);
+	  myflat = otherflat;             // replace individual flatness by merged
 	}
     }
-  return(myflat); 
+  return (myflat); 
   // note: by now, myflat refers to the 'collective' flatness in the energy window,
   // not the flatness of an individual walker
 }
+
 
 void init_lattice(double emin, double emax)
 {
   int e,r;
 
-  latticepoint=(int*)malloc((numberspins+2+1)*sizeof(int));
+  latticepoint = (int*) malloc((numberspins+2+1) * sizeof(int));
   // Note: we reserve space for 3 extra 'spins':
   // 2 extra to store fix values used for certain boundary conditions
   // 1 extra to carry an replica-id flag
@@ -292,118 +304,124 @@ void init_lattice(double emin, double emax)
   // global maximum of g(E) id at E/N=-0.2 
 
   //initialize lattice
-  for(int i=0;i<numberspins;i++) 
+  for (int i=0; i<numberspins; i++) 
     {
-      // start with ordered config at E=0
-      if ((emin+(emax-emin)/2)>-0.2*(numberspins)) latticepoint[i]=(i+((i/L1dim)%2))%2; 
-      else latticepoint[i]=1; // start with GS config
+      if ((emin+(emax-emin)/2) > -0.2*(numberspins))   // start with ordered config at E=0
+        latticepoint[i] = (i + ((i/L1dim) % 2)) % 2; 
+      else                                             // start with GS config
+        latticepoint[i] = 1;
     }
 
-  e=totalenergy();
+  e = totalenergy();
 
-  stdoutlog=fopen(stdoutlogname,"a");
-  fprintf(stdoutlog,"Proc. %i: Initialized lattice with energy e=%i, create setup with %lf<e<%lf\n",myid,e,(emin+(emax-emin)/3),(emin+2*(emax-emin)/3));
+  stdoutlog = fopen(stdoutlogname, "a");
+  fprintf(stdoutlog, "Proc. %i: Initialized lattice with energy e=%i, create setup with %lf<e<%lf\n", myid, e, (emin+(emax-emin)/3), (emin+2*(emax-emin)/3));
   fclose(stdoutlog);
 
   // run to a valid energy for the energy window
 
   // as long as energy is outside the middle third of local energy range
-  while ((e<(emin+(emax-emin)/3))||(e>(emin+2*(emax-emin)/3))) 
+  while ((e < (emin+(emax-emin)/3)) || (e > (emin+2*(emax-emin)/3))) 
     {
-      r=rand()%numberspins;
-      e+=propose_update(r);
+      r = rand() % numberspins;
+      e += propose_update(r);
     }
 
-  if (bctype==1)
+  if (bctype == 1)
     {
-      latticepoint[numberspins]=1; // Braskamp Kunz has fixed spin values at boundaries
-      latticepoint[numberspins+1]=-1;
+      latticepoint[numberspins] = 1;         // Braskamp Kunz has fixed spin values at boundaries
+      latticepoint[numberspins+1] =- 1;
     }
 
   // use last spin to store replica-id; this is just a marker to
   // allows us to keep track of replicas as they are exchanged
-  latticepoint[numberspins+2]=myid;
+  latticepoint[numberspins+2] = myid;
 
   //Print lattice to logfile
-  stdoutlog=fopen(stdoutlogname,"a");
-  for(int i=0;i<numberspins;i++) 
+  stdoutlog = fopen(stdoutlogname, "a");
+  for (int i=0; i<numberspins; i++) 
     {
-      fprintf(stdoutlog,"%4i",latticepoint[i]);
-      if ((i+1)%L1dim==0) fprintf(stdoutlog,"\n");
+      fprintf(stdoutlog, "%4i", latticepoint[i]);
+      if ((i+1)%L1dim == 0)
+        fprintf(stdoutlog, "\n");
     }
   fclose(stdoutlog);
 }
 
+
 void init_hists() // initialize histograms
 {
-  lngE=(double*)malloc(hist_size*sizeof(double));
-  lngE_buf=(double*)malloc(hist_size*sizeof(double));
-  HE=(double*)malloc(hist_size*sizeof(double));
+  lngE     = (double*) malloc(hist_size*sizeof(double));
+  lngE_buf = (double*) malloc(hist_size*sizeof(double));
+  HE       = (double*) malloc(hist_size*sizeof(double));
 
-  for (int i=0;i<hist_size;i++) lngE[i]=0.0;
+  for (int i=0; i<hist_size; i++) 
+    lngE[i] = 0.0;
 }
+
 
 // set boundaries for energy windows:
 // either read from file (if precomputed for balanced REWL)
 // or just split energy range evenly according to avaliable waklers
 int find_local_energy_range(double Eglobmin, double Eglobmax, double overlap, int N)
 {
-  stdoutlog=fopen(stdoutlogname,"a");
+  stdoutlog = fopen(stdoutlogname, "a");
 
   // consistency check
-  if (N%multiple!=0)
+  if (N%multiple != 0)
     {
-      fprintf(stdoutlog,"Total number of processes (%i) must be a multiple of the number of walkers per energy range (%i)!\n",N,multiple);
+      fprintf(stdoutlog, "Total number of processes (%i) must be a multiple of the number of walkers per energy range (%i)!\n", N, multiple);
       fclose(stdoutlog);
-      return(1);
+      return (1);
     }
 
   FILE *window_init;
 
   // check if there is a file containing local energy window boundaries
   // Must be named Ewindows.dat !
-  if ((window_init=fopen("Ewindows.dat","r"))==NULL)
+  if ((window_init = fopen("Ewindows.dat","r")) == NULL)
     {
-      fprintf(stdoutlog,"Proc %i: Can't find file Ewindows.dat. Will calculate equal-size windows with overlap %lf\n",myid,overlap);
-      double Ewidth=(Eglobmax-Eglobmin)/(1.0+((double)(N/multiple)-1.0)*(1.0-overlap));
+      fprintf(stdoutlog, "Proc %i: Can't find file Ewindows.dat. Will calculate equal-size windows with overlap %lf\n", myid, overlap);
+      double Ewidth = (Eglobmax-Eglobmin)/(1.0 + ((double)(N/multiple)-1.0) * (1.0-overlap));
 
-      Emin=Eglobmin+(double)(myid/multiple)*(1-overlap)*Ewidth;
-      Emax=Emin+Ewidth;
+      Emin = Eglobmin + (double)(myid/multiple) * (1.0-overlap) * Ewidth;
+      Emax = Emin + Ewidth;
       
-      Eminindex=floor(Emin+2*numberspins);
-      Emaxindex=ceil(Emax+2*numberspins);
+      Eminindex = floor(Emin + 2*numberspins);
+      Emaxindex = ceil(Emax + 2*numberspins);
       
       time(&timenow);
-      fprintf(stdoutlog,"Proc %3i: Parameter: Eglobmin -- Eglobmax: %lf -- %lf; overlap=%i percent, Ewindowwidth=%lf, %s",myid,Eglobmin,Eglobmax,(int)(overlap*100.0),Ewidth,ctime(&timenow));
+      fprintf(stdoutlog, "Proc %3i: Parameter: Eglobmin -- Eglobmax: %lf -- %lf; overlap=%i percent, Ewindowwidth=%lf, %s", myid, Eglobmin, Eglobmax, (int)(overlap*100.0), Ewidth, ctime(&timenow));
     }
   else
     {
       int myid_cmp;
       double E1tmp, E2tmp;
-      fprintf(stdoutlog,"Proc %i: Read local energy boundaries from file Ewindows.dat\n",myid);
-      for (int i=0;i<N/multiple;i++)
+      fprintf(stdoutlog, "Proc %i: Read local energy boundaries from file Ewindows.dat\n", myid);
+      for (int i=0; i<N/multiple; i++)
 	{
-	  if (fscanf(window_init,"%i\t%lf\t%lf\n",&myid_cmp,&E1tmp,&E2tmp)!=EOF)
+	  if (fscanf(window_init, "%i\t%lf\t%lf\n", &myid_cmp, &E1tmp, &E2tmp) != EOF)
 	    {
-	      if (myid_cmp==myid/multiple)
+	      if (myid_cmp == myid/multiple)
 		{
-		  Eminindex=E1tmp;
-		  Emaxindex=E2tmp;
+		  Eminindex = E1tmp;
+		  Emaxindex = E2tmp;
 		}
 	    }
 	  else
 	    {
-	      fprintf(stdoutlog,"Can't read boundaries for %ith energy window!\n",myid/multiple);
+	      fprintf(stdoutlog, "Can't read boundaries for %ith energy window!\n", myid/multiple);
 	      fclose(stdoutlog);
-	      return(1);
+	      return (1);
 	    }
 	}
     }
 
   fclose(stdoutlog);
 
-  return(0);
+  return (0);
 }
+
 
 // THIS IS THE MASTER RE / SWAP FUNCTION
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -553,55 +571,72 @@ int main(int argc, char* argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 
-  // check command line arguments 
-  // ! TODO: rewrite to get this information from an input file
-  if (argc<4)
+  // check command line arguments
+  sprintf(stdoutlogname, "Error%04i.log", myid);
+  if (argc < 4)
     {
-      sprintf(stdoutlogname,"Error%04i.log",myid);
-      stdoutlog=fopen(stdoutlogname,"w");
-      fprintf(stdoutlog,"provide (double)overlap (0<=overlap<=1), (int)walker per range window, (int)swap_every and (int)rand_init\n");
-
+      stdoutlog = fopen(stdoutlogname, "w");
+      fprintf(stdoutlog, "Unexpected number of command line arguments!\n");
+      fprintf(stdoutlog, "Expect 4 arguments, %d were provided.\n", argc);
+      fprintf(stdoutlog, "Syntax: ./WLpotts_mpi [arg1] [arg2] [arg3] [arg4] \n\n");
+      fprintf(stdoutlog, "Please provide the following command line arguments:\n");
+      fprintf(stdoutlog, "1. Overlap between consecutive windows. [double, 0 <= overlap <= 1]\n");
+      fprintf(stdoutlog, "2. Number of walkers per energy subwindow. [integer]\n");
+      fprintf(stdoutlog, "3. Number of Monte Carlo steps between replica exchange. [integer]\n");
+      fprintf(stdoutlog, "4. Random number seed. [integer]\n\n");
       fclose(stdoutlog);
-      printf("provide (double)overlap (0<=overlap<=1), (int)walker per range window, (int)swap_every and (int)rand_init\n");
-      MPI_Abort(MPI_COMM_WORLD,1);
+
+      printf("ERROR: Unexpected number of command line arguments!\n");
+      printf("       Expect 4 arguments, %d were provided.\n", argc);
+      printf("Syntax: ./WLpotts_mpi [arg1] [arg2] [arg3] [arg4] \n\n");
+      printf("Please provide the following command line arguments:\n");
+      printf("1. Overlap between consecutive windows. [double, 0 <= overlap <= 1]\n");
+      printf("2. Number of walkers per energy subwindow. [integer]\n");
+      printf("3. Number of Monte Carlo steps between replica exchange. [integer]\n");
+      printf("4. Random number seed. [integer]\n\n");
+
+      MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
   // number of walkers per energy window
-  multiple=atoi(argv[2]);
+  multiple = atoi(argv[2]);
 
-  // at the moment, the code work only for an _odd_ number of energy windows
+  // at the moment, the code works only for an _odd_ number of energy windows
   // (to make the RE in windows at the outside consistent)
-  if ((numprocs/multiple)%2==0)
+  if ((numprocs/multiple)%2 == 0)
     {
-      stdoutlog=fopen(stdoutlogname,"a");
-      fprintf(stdoutlog,"Error would occur in 'replica_exchange' - even energy range window number\n");
+      stdoutlog = fopen(stdoutlogname, "a");
+      fprintf(stdoutlog, "ERROR: Even number of energy windows (%d) requested. Please request an odd number of energy windows.\n\n", numprocs/multiple);
       fclose(stdoutlog);
-      MPI_Barrier(MPI_COMM_WORLD);
-      MPI_Abort(MPI_COMM_WORLD,1);
+
+      printf("ERROR: Even number of energy windows (%d) requested. Please request an odd number of energy windows.\n\n", numprocs/multiple);
+
+      MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-  MPI_Barrier(MPI_COMM_WORLD);
+  //MPI_Barrier(MPI_COMM_WORLD);
 
   // initiate random numbers
-  rseed=atoi(argv[4]);
+  rseed = atoi(argv[4]);
   srand(rseed+myid);
 
-  int swap_every=atoi(argv[3]); // after this number of sweeps try conformations swap
-  int swap_every_init=swap_every;
+  int swap_every = atoi(argv[3]);      // after this number of sweeps try conformations swap
+  int swap_every_init = swap_every;
 
   // init log file
-  sprintf(stdoutlogname,"Proc%04i.sim%i.log",myid,rseed);
+  sprintf(stdoutlogname, "Proc%04i.sim%i.log", myid, rseed);
 
   // set local energy range
-  ret_status=find_local_energy_range(Eglobalmin,Eglobalmax,atof(argv[1]),numprocs);
+  ret_status = find_local_energy_range(Eglobalmin, Eglobalmax, atof(argv[1]), numprocs);
   MPI_Barrier(MPI_COMM_WORLD);
-  if (ret_status!=0)
+
+  if (ret_status != 0)
     {
-      stdoutlog=fopen(stdoutlogname,"a");
-      fprintf(stdoutlog,"Proc. %3i: find_local_energy_range() returned %i\n",myid,ret_status);
+      stdoutlog = fopen(stdoutlogname, "a");
+      fprintf(stdoutlog,"Proc. %3i: find_local_energy_range() returned %i\n", myid, ret_status);
       fclose(stdoutlog);
 
-      MPI_Abort(MPI_COMM_WORLD,1); // something went wrong in find_local_energy_range()
+      MPI_Abort(MPI_COMM_WORLD, 1);    // something went wrong in find_local_energy_range()
     }
 
   init_neighbors();
