@@ -573,28 +573,31 @@ int main(int argc, char* argv[])
 
   // check command line arguments
   sprintf(stdoutlogname, "Error%04i.log", myid);
-  if (argc < 4)
+  if (argc < 5)
     {
-      stdoutlog = fopen(stdoutlogname, "w");
-      fprintf(stdoutlog, "Unexpected number of command line arguments!\n");
-      fprintf(stdoutlog, "Expect 4 arguments, %d were provided.\n", argc);
-      fprintf(stdoutlog, "Syntax: ./WLpotts_mpi [arg1] [arg2] [arg3] [arg4] \n\n");
-      fprintf(stdoutlog, "Please provide the following command line arguments:\n");
-      fprintf(stdoutlog, "1. Overlap between consecutive windows. [double, 0 <= overlap <= 1]\n");
-      fprintf(stdoutlog, "2. Number of walkers per energy subwindow. [integer]\n");
-      fprintf(stdoutlog, "3. Number of Monte Carlo steps between replica exchange. [integer]\n");
-      fprintf(stdoutlog, "4. Random number seed. [integer]\n\n");
-      fclose(stdoutlog);
+      if (myid == 0) 
+        {
+          stdoutlog = fopen(stdoutlogname, "w");
+          fprintf(stdoutlog, "Unexpected number of command line arguments!\n");
+          fprintf(stdoutlog, "Expect 4 arguments, %d were provided.\n", argc-1);
+          fprintf(stdoutlog, "Syntax: ./WLpotts_mpi [arg1] [arg2] [arg3] [arg4] \n\n");
+          fprintf(stdoutlog, "Please provide the following command line arguments:\n");
+          fprintf(stdoutlog, "1. Overlap between consecutive windows. [double, 0 <= overlap <= 1]\n");
+          fprintf(stdoutlog, "2. Number of walkers per energy subwindow. [integer]\n");
+          fprintf(stdoutlog, "3. Number of Monte Carlo steps between replica exchange. [integer]\n");
+          fprintf(stdoutlog, "4. Random number seed. [integer]\n\n");
+          fclose(stdoutlog);
 
-      printf("ERROR: Unexpected number of command line arguments!\n");
-      printf("       Expect 4 arguments, %d were provided.\n", argc);
-      printf("Syntax: ./WLpotts_mpi [arg1] [arg2] [arg3] [arg4] \n\n");
-      printf("Please provide the following command line arguments:\n");
-      printf("1. Overlap between consecutive windows. [double, 0 <= overlap <= 1]\n");
-      printf("2. Number of walkers per energy subwindow. [integer]\n");
-      printf("3. Number of Monte Carlo steps between replica exchange. [integer]\n");
-      printf("4. Random number seed. [integer]\n\n");
+          printf("ERROR: Unexpected number of command line arguments!\n");
+          printf("       Expect 4 arguments, %d were provided.\n", argc-1);
+          printf("Syntax: ./WLpotts_mpi [arg1] [arg2] [arg3] [arg4] \n\n");
+          printf("Please provide the following command line arguments:\n");
+          printf("1. Overlap between consecutive windows. [double, 0 <= overlap <= 1]\n");
+          printf("2. Number of walkers per energy subwindow. [integer]\n");
+          printf("3. Number of Monte Carlo steps between replica exchange. [integer]\n");
+          printf("4. Random number seed. [integer]\n\n");
 
+        }
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
@@ -605,11 +608,14 @@ int main(int argc, char* argv[])
   // (to make the RE in windows at the outside consistent)
   if ((numprocs/multiple)%2 == 0)
     {
-      stdoutlog = fopen(stdoutlogname, "a");
-      fprintf(stdoutlog, "ERROR: Even number of energy windows (%d) requested. Please request an odd number of energy windows.\n\n", numprocs/multiple);
-      fclose(stdoutlog);
+      if (myid == 0) 
+        {
+          stdoutlog = fopen(stdoutlogname, "a");
+          fprintf(stdoutlog, "ERROR: Even number of energy windows (%d) requested. Please request an odd number of energy windows.\n\n", numprocs/multiple);
+          fclose(stdoutlog);
 
-      printf("ERROR: Even number of energy windows (%d) requested. Please request an odd number of energy windows.\n\n", numprocs/multiple);
+          printf("ERROR: Even number of energy windows (%d) requested. Please request an odd number of energy windows.\n\n", numprocs/multiple);
+        }
 
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
