@@ -1,4 +1,7 @@
-# This is a set of demonstration codes complementary to the Replica-Exchange Wang-Landau sampling tutorial lectures given at the IX Brazilian Meeting on Simulational Physics, August 21-25, 2017, Natal, Brazil. 
+# Replica-Exchange Wang-Landau sampling tutorial lectures at IX Brazilian Meeting on Simulational Physics, 2017
+This is a set of demonstration codes complementary to the Replica-Exchange Wang-Landau sampling tutorial lectures given at the IX Brazilian Meeting on Simulational Physics, August 21-25, 2017, Natal, Brazil.
+
+Please cite the conference proceeding paper J. Phys.: Conf. Ser. 1012 (1), 012003 (2018) that can be found at https://iopscience.iop.org/article/10.1088/1742-6596/1012/1/012003
 
 # To compile the code:
 mpicxx -o WLpotts_mpi WLpotts_mpi.cpp 
