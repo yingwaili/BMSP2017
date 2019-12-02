@@ -1,6 +1,6 @@
 /*
   Replica Exchange Wang Landau demo code for simulating the 2D Potts model
-  (c) Thomas Vogel and Ying Wai Li (2013, 2014, 2015, 2016, 2017)
+  (c) Thomas Vogel and Ying Wai Li (2013-2019)
  
   License: Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
            https://creativecommons.org/licenses/by-sa/4.0/legalcode
@@ -747,19 +747,19 @@ int main(int argc, char* argv[])
 
   //start simulation
   double wsk,dice; // wsk: probability  
-  int wiggle; // ID of spin to be updated (only single-spin update implemented)
+  int wiggle;      // ID of spin to be updated (only single-spin update implemented)
 
   init_hists();
 
   // the WL parameter should eventually go into the init file, too
-  double lnf=1.0; // my modification factor
-  double lnf_slowest=lnf; // modification factor of slowest walker in my window
+  double lnf=1.0;                    // my modification factor
+  double lnf_slowest=lnf;            // modification factor of slowest walker in my window
   //double lnfmin=log(1.000000001);
-  double lnfmin=log(1.0000001); // terminal modification factor
-  double sweep=0; // counter for MC sweeps
-  int flat; // 0 - histogram not flat; 1 - flat
-  int iteration=1; // WL iteration counter
-  double check_flatness_every=500; // in number of sweeps
+  double lnfmin=log(1.0000001);      // terminal modification factor
+  double sweep=0;                    // counter for MC sweeps
+  int flat;                          // 0 - histogram not flat; 1 - flat
+  int iteration=1;                   // WL iteration counter
+  double check_flatness_every=500;   // in number of sweeps
   int backup;
   
   eold=energie;
@@ -917,8 +917,8 @@ int main(int argc, char* argv[])
 //   free(neighbor);
 //   free(latticepoint);
 
-  // normaliye results
-  double norm=lngE[0]-log(q);
+  // normalize results
+  double norm=lngE[Eminindex]-log(q); 
   for (int i=0;i<=4*numberspins;i++) lngE[i]-=norm;
   
   // write final data to file
